@@ -6,18 +6,35 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
+DEVICE_INFO_PATH = ".temp/device_info.txt"
 
-"""
-# Change the TOUCHPAD_DEVICE value to the correct path of your touchpad
 
-You can find the path by the following steps:
-* run `cat /proc/bus/input/devices`
-* find the touchpad device in the list, by looking for the keyword "Touchpad" or similar on the "Name" field
-* look for the "Handlers" field and find the corresponding event number (e.g. "event6")
-* the path should be "/dev/input/eventX", where X is the event number found
-"""
-TOUCHPAD_DEVICE = "/dev/input/event6"
+def _execute_command(command):
+    subprocess.run(command, shell=True)
 
+
+def _find_device_info():
+    _execute_command(f'if [ -f "{DEVICE_INFO_PATH}" ]; then rm "{DEVICE_INFO_PATH}"; fi')
+    _execute_command(f'cat /proc/bus/input/devices | grep -A 5 -i "touchpad" > {DEVICE_INFO_PATH}')
+
+
+def extract_event_number() -> str:
+    _find_device_info()
+
+    try:
+        with open(DEVICE_INFO_PATH, "r") as file:
+            for line in file:
+                if line.startswith("H: Handlers="):
+                    for part in line.split():
+                        if part.startswith("event"):
+                            return part
+        raise Exception("Event number not found in file")
+    except FileNotFoundError as e:
+        raise e
+
+
+event_number = extract_event_number()
+TOUCHPAD_DEVICE = f"/dev/input/{event_number}"
 FINGERS_CONFIGURED = 3
 
 
@@ -57,6 +74,7 @@ def monitor_touchpad():
             events = []
             fingers_used = 0
 
+
 def process_gesture(events):
     """Process events from the touchpad to translate into gestures"""
 
@@ -85,10 +103,6 @@ def process_gesture(events):
     else:
         # down
         _execute_command("xdotool key super")
-
-
-def _execute_command(command):
-    subprocess.run(command, shell=True)
 
 
 if __name__ == "__main__":
