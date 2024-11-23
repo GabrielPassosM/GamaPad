@@ -55,16 +55,19 @@ def monitor_touchpad():
     current_slot = None
 
     for event in touchpad.read_loop():
-        if event.type == ecodes.EV_ABS:
-            if event.code == ecodes.ABS_MT_SLOT:
-                current_slot = event.value
-            elif event.code == ecodes.ABS_MT_TRACKING_ID:
-                if current_slot is not None:
-                    if event.value == -1:  # finger lifted
-                        active_slots.discard(current_slot)
-                    else:  # finger touched
-                        active_slots.add(current_slot)
-            events.append(event)
+        if event.type != ecodes.EV_ABS:
+            continue
+
+        if event.code == ecodes.ABS_MT_SLOT:
+            current_slot = event.value
+        elif event.code == ecodes.ABS_MT_TRACKING_ID:
+            if current_slot is None:
+                continue
+            if event.value == -1:  # finger lifted
+                active_slots.discard(current_slot)
+            else:  # finger touched
+                active_slots.add(current_slot)
+        events.append(event)
 
         fingers_used = max(fingers_used, len(active_slots))
 
@@ -78,8 +81,12 @@ def monitor_touchpad():
 def process_gesture(events):
     """Process events from the touchpad to translate into gestures"""
 
-    x_coords = [e.value for e in events if e.code == ecodes.ABS_MT_POSITION_X]
-    y_coords = [e.value for e in events if e.code == ecodes.ABS_MT_POSITION_Y]
+    x_coords, y_coords = [], []
+    for e in events:
+        if e.code == ecodes.ABS_MT_POSITION_X:
+            x_coords.append(e.value)
+        elif e.code == ecodes.ABS_MT_POSITION_Y:
+            y_coords.append(e.value)
 
     # insuficient data
     if not x_coords or not y_coords:
